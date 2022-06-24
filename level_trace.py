@@ -32,63 +32,77 @@ def get_neighbors(i,j,image):
     return neighbors
 
 
-def level_trace(x,y,image):
+def get_initial_threshold(x,y,image):
+    neighbors = get_neighbors(x,y,image)
+    neighbors = [image[x[0],x[1]] for x in neighbors]
+    return np.median(neighbors)
+
+def level_trace(x,y,image, threshold):
     visited = set()
     visited.add((x,y))
-    # pdb.set_trace()
-    #do an isometric level trace
-    #always go to the neighbor that is most similar to the current pixel
-    #discard the other neighbors
+    to_visit = set()
     og_value = image[x,y]
     start = (x,y)
     curr_pixel = (x,y)
+
     i = 0
     while True:
         neighbors = get_neighbors(curr_pixel[0],curr_pixel[1],image)
         neighbors = [x for x in neighbors if x not in visited]
-        #get the neighbor that is most similar to the current pixel
-        neighbors = sorted(neighbors, key=lambda x: np.abs(image[x[0],x[1]] - og_value))
-        # try:
-        if len(neighbors) > 0:
-            curr_pixel = neighbors[0]
+        to_visit.update([neighbor for neighbor in neighbors if (image[neighbor] < threshold)])
+        
+        if len(to_visit) == 0:
+            break
+        else: 
+            curr_pixel = to_visit.pop()
             visited.add(curr_pixel)
-            i += 1
-        else:
-            break
-
-        visited.add(curr_pixel)
-        if i == 1:
-            visited.remove(start)
         i +=1
-        if curr_pixel == start:
-            break
+        
     return visited
 
 # function to display the coordinates of
 # of the points clicked on the image
 def click_event(event, x, y, flags, params):
 
-    if event == cv2.EVENT_RBUTTONDOWN or event == cv2.EVENT_LBUTTONDOWN:
+    if event == cv2.EVENT_RBUTTONDOWN or event == cv2.EVENT_LBUTTONDOWN or event == cv2.EVENT_MOUSEMOVE:
 
 
-        img = cv2.imread('test.png',0)
+        img = cv2.imread('abdominal-ct-scan2.jpg',0)
 		# displaying the coordinates
 		# on the Shell
         print(x, ' ', y)
-        # pdb.set_trace()
-        visited = level_trace(y,x,img)
+
+        thresh = get_initial_threshold(y,x,img)
+
+        visited = level_trace(y,x,img,thresh)
 
         # displaying the output image over the original image   
         for i in visited:     
             img[i[0],i[1]] = 255
         cv2.imshow('image', img)
 
+    # elif event == cv2.EVENT_MOUSEMOVE:
+
+    #     img = cv2.imread('test.png',0)
+	# 	# displaying the coordinates
+	# 	# on the Shell
+    #     print(x, ' ', y)
+
+    #     thresh = get_initial_threshold(y,x,img)
+
+    #     visited = level_trace(y,x,img,thresh)
+
+    #     # displaying the output image over the original image   
+    #     for i in visited:     
+    #         img[i[0],i[1]] = 255
+    #     cv2.imshow('image', img)
+
 
 # driver function
 if __name__=="__main__":
 
 	# reading the image
-    img = cv2.imread('test.png',0)
+    img = cv2.imread('abdominal-ct-scan2.jpg',0)
     
 	# displaying the image
     cv2.imshow('image', img)
