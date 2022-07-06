@@ -4,30 +4,33 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import pdb
+from pyrsistent import s
 
-def get_neighbors(i,j,image):
+from sklearn import neighbors
+
+def get_neighbors(x,y,image):
     neighbors = []
     xmin = 0
-    xmax = len(image[0])
+    xmax = len(image)
     ymin = 0
-    ymax = len(image)
+    ymax = len(image[0])
 
-    if i > 0:
-        neighbors.append((i-1,j))
-    if i < xmax-1:
-        neighbors.append((i+1,j))
-    if j > 0:
-        neighbors.append((i,j-1))
-    if j < ymax-1:
-        neighbors.append((i,j+1))
-    if i > 0 and j > 0:
-        neighbors.append((i-1,j-1))
-    if i > 0 and j < ymax-1:
-        neighbors.append((i-1,j+1))
-    if i < xmax-1 and j > 0:
-        neighbors.append((i+1,j-1))
-    if i < xmax-1 and j < ymax-1:
-        neighbors.append((i+1,j+1))
+    if x > 0:
+        neighbors.append((x-1,y))
+    if x < xmax-1:
+        neighbors.append((x+1,y))
+    if y > 0:
+        neighbors.append((x,y-1))
+    if y < ymax-1:
+        neighbors.append((x,y+1))
+    if x > 0 and y > 0:
+        neighbors.append((x-1,y-1))
+    if x > 0 and y < ymax-1:
+        neighbors.append((x-1,y+1))
+    if x < xmax-1 and y > 0:
+        neighbors.append((x+1,y-1))
+    if x < xmax-1 and y < ymax-1:
+        neighbors.append((x+1,y+1))
         
     return neighbors
 
@@ -37,27 +40,65 @@ def get_initial_threshold(x,y,image):
     neighbors = [image[x[0],x[1]] for x in neighbors]
     return np.median(neighbors)
 
+def get_mean_val(x,y,image):
+    neighbors = get_neighbors(x,y,image)
+    neighbors = [image[x[0],x[1]] for x in neighbors]
+    return np.mean(neighbors)
+
 def level_trace(x,y,image, threshold):
-    visited = set()
-    visited.add((x,y))
-    to_visit = set()
-    og_value = image[x,y]
+    #check if this is a uniform area
+    #if it is, return the starting pixel
+    neighbors = get_neighbors(x,y,image)
+    neighbors = [image[x[0],x[1]] for x in neighbors]
+    if np.max(neighbors) - np.min(neighbors) < 10:
+        return [(x,y)]
+
+    #get the gradiets of 
+
+    # x, y are the starting pixels
+
     start = (x,y)
-    curr_pixel = (x,y)
+
+    image = np.array(image, dtype=int)
+
+    visited = set()
+
+    # #apply the threshold to the image
+    image[image < threshold] = 0
+    image[image >= threshold] = 255
+
+    start_x = x
+    start_y = y
+
+    curr_x = x
+    curr_y = y
+    
+    start_mean = get_mean_val(x,y,image)
 
     i = 0
-    while True:
-        neighbors = get_neighbors(curr_pixel[0],curr_pixel[1],image)
-        neighbors = [x for x in neighbors if x not in visited]
-        to_visit.update([neighbor for neighbor in neighbors if (image[neighbor] < threshold)])
-        
-        if len(to_visit) == 0:
+
+    while True: 
+        neighbors = get_neighbors(curr_x,curr_y,image)
+        neighbors = [neighbor for neighbor in neighbors if neighbor not in visited]
+        if len(neighbors) == 0:
             break
-        else: 
-            curr_pixel = to_visit.pop()
-            visited.add(curr_pixel)
-        i +=1
-        
+        neighbor_means = [get_mean_val(neighbor[0],neighbor[1],image) for neighbor in neighbors]
+        neighbor_means = np.array(neighbor_means)
+        diffs = neighbor_means - start_mean
+        diffs = np.abs(diffs)
+        min_index = np.argmin(diffs)
+        visited.add((curr_x,curr_y))
+
+        curr_x = neighbors[min_index][0]
+        curr_y = neighbors[min_index][1]
+
+        if i == 10:
+            visited.remove((start_x,start_y))
+
+        if curr_x == start_x and curr_y == start_y:
+            break
+        i += 1
+
     return visited
 
 def calculate_gradient(x,y,image):
@@ -66,56 +107,60 @@ def calculate_gradient(x,y,image):
     return np.array([x_grad, y_grad])
 
 def level_trace_2(x,y,image, threshold):
-    #x, y are the starting pixels
-    #calculate the gradients at the starting pixel
-    #move in the direction of the zero gradient
-    # add the current pixel to the visited set
-    # if the current pixel is the same as the starting pixel, stop
-    # if the current pixel is not the same as the starting pixel,
-    #   calculate the gradients at the current pixel
+    #check if this is a uniform area
+    #if it is, return the starting pixel
+    neighbors = get_neighbors(x,y,image)
+    neighbors = [image[x[0],x[1]] for x in neighbors]
+    if np.max(neighbors) - np.min(neighbors) < 10:
+        return [(x,y)]
+    
+    start = (x,y)
+
     image = np.array(image, dtype=int)
 
     visited = set()
-    visited.add((x,y))
-    # to_visit = set()
-    curr_value = image[x,y]
-    # start_value = curr_value
-    start = (x,y)
-    curr_pixel = (x,y)
-    i = 0
 
-    while True:
-        curr_value = image[curr_pixel[0],curr_pixel[1]]
-        curr_gradient = calculate_gradient(curr_pixel[0],curr_pixel[1],image)
-        neighbors = get_neighbors(curr_pixel[0],curr_pixel[1],image)
-        neighbors = np.array([x for x in neighbors if x not in visited])
-        all_values = np.array([image[x[0],x[1]] for x in neighbors])
-        gradients = np.array([calculate_gradient(neighbor[0],neighbor[1],image) for neighbor in neighbors])
+    # #apply the threshold to the image
+    image[image < threshold] = 0
+    image[image >= threshold] = 255
 
+
+    #make sure to check if the current pixel has a value of 255
+    #if it doesn't, change curr_x and curr_y to be a neighbor of the current pixel
+    if image[x,y] == 0:
+        neighbors = get_neighbors(x,y,image)
+        neighbors_vals = [image[x[0],x[1]] for x in neighbors]
+        min_index = np.argmin(neighbors_vals)
+        x = neighbors[min_index][0]
+        y = neighbors[min_index][1]
+
+    to_visit = []
+    while True: 
+        neighbors = get_neighbors(x,y,image)
+        neighbors = [neighbor for neighbor in neighbors if neighbor not in visited and image[neighbor] == 255]
         if len(neighbors) == 0:
             break
+        neighbor_vals = [image[x[0],x[1]] for x in neighbors]
 
-        # if np.max(gradients) - np.min(gradients) < 3:
-        #     break
-        
+        neighbor_vals = np.array(neighbor_vals)
+        diffs = neighbor_vals - image[x,y]
+        diffs = np.abs(diffs)
+        min_index = np.argmin(diffs)
+        visited.add((x,y))
 
-        #pick the pixel with a gradient most similar to the gradient at the curr pixel
-        grad_distances = np.linalg.norm(gradients - curr_gradient, axis=1)
-        val_distances = np.linalg.norm(all_values - curr_value)
+        to_visit.append((neighbors[min_index][0],neighbors[min_index][1]))
 
-        # pdb.set_trace()
-        distances = grad_distances + val_distances
-        # pdb.set_trace()
-        min_index = np.argmin(distances)
-        curr_pixel = neighbors[min_index]
+        next_thing = to_visit.pop(0)
 
-        visited.add((curr_pixel[0],curr_pixel[1]))
-    
-        if curr_pixel[0] == start[0] and curr_pixel[1] == start[1]:
-            break
-        i += 1
+        x = next_thing[0]
+        y = next_thing[1]
+
+
+
 
     return visited
+
+
 
 # function to display the coordinates of
 # of the points clicked on the image
@@ -131,28 +176,22 @@ def click_event(event, x, y, flags, params):
 
         thresh = get_initial_threshold(y,x,img)
 
-        visited = level_trace_2(y,x,img,thresh)
+        # img[img < thresh] = 0
+        # img[img >= thresh] = 255
 
-        # displaying the output image over the original image   
-        for i in visited:     
-            img[i[0],i[1]] = 255
+        # print(img[x,y])
+
+        visited = level_trace(y,x,img,thresh)
+
+        # # displaying the output image over the original image   
+        for i in visited:
+            # pdb.set_trace()
+            img[i] = 255
+
         cv2.imshow('image', img)
 
-    # elif event == cv2.EVENT_MOUSEMOVE:
 
-    #     img = cv2.imread('test.png',0)
-	# 	# displaying the coordinates
-	# 	# on the Shell
-    #     print(x, ' ', y)
 
-    #     thresh = get_initial_threshold(y,x,img)
-
-    #     visited = level_trace(y,x,img,thresh)
-
-    #     # displaying the output image over the original image   
-    #     for i in visited:     
-    #         img[i[0],i[1]] = 255
-    #     cv2.imshow('image', img)
 
 
 # driver function
