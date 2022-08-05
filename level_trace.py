@@ -1,5 +1,6 @@
 # importing the module
 from email.mime import image
+from tabnanny import check
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -76,6 +77,17 @@ def get_neighbors_array(x,y,image):
         neighbors[1,2] = image[x,y+1]
     return neighbors
 
+def check_if_clockwise(points):
+    sum = 0
+    # for each pair of points in the visited set (connecting the ending point to the starting point),
+    # add (x2-x1) * (y2+y1) to the sum
+    for i in range(len(points)-1):
+        sum += (points[i+1][0] + points[i][0]) * (points[i+1][1] - points[i][1])
+    # if the sum is positive, the points are clockwise
+    return sum > 0
+
+
+
 def level_trace(x,y,img, threshold):
     #check if this is a uniform area
     #if it is, return the starting pixel
@@ -86,10 +98,10 @@ def level_trace(x,y,img, threshold):
 
 
     neighbors = get_neighbors(x,y,image)
-    print((x,y))
-    print(neighbors)
+    # print((x,y))
+    # print(neighbors)
     neighbors = [image[x[0],x[1]] for x in neighbors]
-    print(neighbors)
+    # print(neighbors)
     if np.max(neighbors) == 0 or np.min(neighbors) == 255:
         return [(x,y)]
 
@@ -97,13 +109,16 @@ def level_trace(x,y,img, threshold):
 
     image = np.array(image, dtype=int)
 
-    visited = set()
+    visited = []
     #from the starting pixel, perform a radial sweep (moore neighborhood tracing), and add the pixels to the visited set
 
     seen_blank = False
     curr = start
     prev = 0
-    while curr not in visited:
+    iters = 0
+    # continue until we have returned to the starting pixel or we time out 
+    while True:
+        iters += 1
         #move clockwise around the neighbors 
         #2 3 4
         #1 x 5
@@ -111,8 +126,9 @@ def level_trace(x,y,img, threshold):
         #starting at 1, look for the first pixel that is not visited that is above the threshold
         #if you find one, add it to the visited set and continue the radial sweep
         i = prev
-        print("outer")
+        # print("outer")
         while True:
+            
             i = (i+1)%8
             if i == 0: 
                 neighbor = (curr[0]-1,curr[1]-1)
@@ -131,25 +147,34 @@ def level_trace(x,y,img, threshold):
             else:
                 neighbor = (curr[0],curr[1]-1)
 
-            print(f"{i}: neighbor: {neighbor}, val: {image[neighbor]}, curr: {curr}, curr_val: {image[curr]}, start: {x},{y}")
+            # print(f"{i}: neighbor: {neighbor}, val: {image[neighbor]}, curr: {curr}, curr_val: {image[curr]}, start: {x},{y}")
             if image[neighbor] < threshold:
                 seen_blank = True
             if image[neighbor] >= threshold and seen_blank:
-                visited.add(curr)
-                prev = i 
+                visited.append(curr)
+                prev = (i - 4) % 8 
+                # prev = i
                 curr = neighbor
                 seen_blank = False
-                
                 break
-        # pdb.set_trace()
-    print(len(visited))
+        if curr == start:
+            print("returned to beginning")
+            break
+        if iters > 10000:
+            print("timed out")
+            # pdb.set_trace()
+            break
+
+    if check_if_clockwise(list(visited)):
+        print("clockwise")
+    else:
+        print("counterclockwise")
+    # print(len(visited))
     return visited
 
 def click_event(event, x, y, flags, params):
 
-    if event == cv2.EVENT_RBUTTONDOWN or event == cv2.EVENT_LBUTTONDOWN or event == cv2.EVENT_MOUSEMOVE:
-    # if event == cv2.EVENT_RBUTTONDOWN or event == cv2.EVENT_LBUTTONDOWN:
-
+    if event == cv2.EVENT_MOUSEMOVE:
         img = cv2.GaussianBlur(cv2.imread('double-scan.jpg',0), (5,5), 0)
 		# displaying the coordinates
 		# on the Shell
@@ -157,9 +182,6 @@ def click_event(event, x, y, flags, params):
 
         # thresh = get_initial_threshold(y,x,img)
         thresh = img[y,x]
-
-        # img[img < thresh] = 0
-        # img[img >= thresh] = 255
 
         visited = level_trace(y,x,img,thresh)
 
@@ -170,7 +192,20 @@ def click_event(event, x, y, flags, params):
 
         cv2.imshow('image', img)
 
+    if event == cv2.EVENT_RBUTTONDOWN or event == cv2.EVENT_LBUTTONDOWN:
+        img = cv2.GaussianBlur(cv2.imread('double-scan.jpg',0), (5,5), 0)
+		# displaying the coordinates
+		# on the Shell
+        print(y, ' ', x)
 
+        # thresh = get_initial_threshold(y,x,img)
+        thresh = img[y,x]
+
+        img[img < thresh] = 0
+        img[img >= thresh] = 255
+
+
+        cv2.imshow('image', img)
 
 # driver function
 if __name__=="__main__":
@@ -191,3 +226,4 @@ if __name__=="__main__":
 
         # close the window
     cv2.destroyAllWindows()
+# 
