@@ -86,8 +86,6 @@ def check_if_clockwise(points):
     # if the sum is positive, the points are clockwise
     return sum > 0
 
-
-
 def level_trace(x,y,img, threshold):
     #check if this is a uniform area
     #if it is, return the starting pixel
@@ -175,7 +173,7 @@ def level_trace(x,y,img, threshold):
 def click_event(event, x, y, flags, params):
 
     if event == cv2.EVENT_MOUSEMOVE:
-        img = cv2.GaussianBlur(cv2.imread('double-scan.jpg',0), (5,5), 0)
+        img = cv2.imread('override.jpg',0)
 		# displaying the coordinates
 		# on the Shell
         print(y, ' ', x)
@@ -189,29 +187,40 @@ def click_event(event, x, y, flags, params):
         for i in visited:
             # pdb.set_trace()
             img[i] = 255
+        
 
         cv2.imshow('image', img)
 
-    if event == cv2.EVENT_RBUTTONDOWN or event == cv2.EVENT_LBUTTONDOWN:
-        img = cv2.GaussianBlur(cv2.imread('double-scan.jpg',0), (5,5), 0)
-		# displaying the coordinates
-		# on the Shell
-        print(y, ' ', x)
+    if event == cv2.EVENT_RBUTTONDOWN:
+        img = cv2.imread('double-scan.jpg')
+        cv2.imwrite('override.jpg',img)
+        cv2.imshow('image', img)
 
-        # thresh = get_initial_threshold(y,x,img)
+    if event == cv2.EVENT_LBUTTONDOWN:
+        img = cv2.imread('override.jpg',0)
+
         thresh = img[y,x]
+        contour = np.array(level_trace(y,x,img,thresh))
+        x_min = np.min(contour[:,0])
+        x_max = np.max(contour[:,0])
+        y_min = np.min(contour[:,1])
+        y_max = np.max(contour[:,1])
 
-        img[img < thresh] = 0
-        img[img >= thresh] = 255
-
-
+        for y in range(y_min,y_max):
+            for x in range(x_min,x_max):
+                if cv2.pointPolygonTest(contour, (x,y), False) >= 0:
+                    img[x,y] = img[x,y] * -1
+        cv2.imwrite('override.jpg',img)
         cv2.imshow('image', img)
 
 # driver function
 if __name__=="__main__":
 
 	# reading the image
-    img = cv2.imread('double-scan.jpg',0)
+    img = cv2.imread('Moon Lit v 2  copy.png',0)
+    #save the original image to a file called "override.jpg"
+    cv2.imwrite('override.jpg',img)
+
     img = cv2.GaussianBlur(img, (5,5), 0)
     
 	# displaying the image
@@ -226,4 +235,3 @@ if __name__=="__main__":
 
         # close the window
     cv2.destroyAllWindows()
-# 
